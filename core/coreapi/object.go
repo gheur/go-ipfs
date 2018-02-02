@@ -14,9 +14,10 @@ import (
 	coreiface "github.com/ipfs/go-ipfs/core/coreapi/interface"
 	caopts "github.com/ipfs/go-ipfs/core/coreapi/interface/options"
 	"github.com/ipfs/go-ipfs/dagutils"
+	pin "github.com/ipfs/go-ipfs/pin"
 	ft "github.com/ipfs/go-ipfs/unixfs"
-	dag "gx/ipfs/QmRy4Qk9hbgFX9NGJRm8rBThrA8PZhNCitMgeRYyZ67s59/go-merkledag"
 
+	dag "gx/ipfs/QmRy4Qk9hbgFX9NGJRm8rBThrA8PZhNCitMgeRYyZ67s59/go-merkledag"
 	cid "gx/ipfs/QmYVNvtQkeZ6AKSwDrjQTs432QtL6umrrK41EBq3cu7iSP/go-cid"
 	ipld "gx/ipfs/QmZtNq8dArGfnpCZfx2pUNY7UcjGhVp5qqwQ4hH6mpTMRQ/go-ipld-format"
 )
@@ -116,9 +117,21 @@ func (api *ObjectAPI) Put(ctx context.Context, src io.Reader, opts ...caopts.Obj
 		return nil, err
 	}
 
+	if options.Pin {
+		defer api.node.Blockstore.PinLock().Unlock()
+	}
+
 	err = api.node.DAG.Add(ctx, dagnode)
 	if err != nil {
 		return nil, err
+	}
+
+	if options.Pin {
+		api.node.Pinning.PinWithMode(dagnode.Cid(), pin.Recursive)
+		err = api.node.Pinning.Flush()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return coreiface.IpfsPath(dagnode.Cid()), nil
