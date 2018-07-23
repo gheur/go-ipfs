@@ -545,6 +545,12 @@
       "hash": "Qmdue1XShFNi3mpizGx9NR9hyNEj6U2wEW93yGhKqKCFGN",
       "name": "go-ipns",
       "version": "0.1.4"
+    },
+    {
+      "author": "magik6k",
+      "hash": "QmbfPqH4QFLQWdfXa111eBKgdTiLkZv2Pc4Qpm2byUeByU",
+      "name": "go-ipfs-config",
+      "version": "0.1.0"
     }
   ],
   "gxVersion": "0.10.0",
