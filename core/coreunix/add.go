@@ -26,6 +26,7 @@ import (
 	bstore "gx/ipfs/QmadMhXJLHMFjpRmh85XjpmVDkEtQpNYEZNRpWRvYVLrvb/go-ipfs-blockstore"
 	logging "gx/ipfs/QmcVVHfdyv15GVPk7NrxdWjh2hLVccXnoD8j2tyQShiXJb/go-log"
 	files "gx/ipfs/QmdE4gMduCKCGAcczM2F5ioYDfdeKuPix138wrES1YSr7f/go-ipfs-cmdkit/files"
+	mbase "gx/ipfs/QmexBtiTTEwwn42Yi6ouKt6VqzpA6wjJgiW1oh9VfaRrup/go-multibase"
 )
 
 var log = logging.Logger("coreunix")
@@ -55,6 +56,7 @@ type AddedObject struct {
 
 // NewAdder Returns a new Adder used for a file add operation.
 func NewAdder(ctx context.Context, p pin.Pinner, bs bstore.GCBlockstore, ds ipld.DAGService) (*Adder, error) {
+	b, _ := mbase.NewEncoder(mbase.Base58BTC)
 	return &Adder{
 		ctx:        ctx,
 		pinning:    p,
@@ -66,6 +68,7 @@ func NewAdder(ctx context.Context, p pin.Pinner, bs bstore.GCBlockstore, ds ipld
 		Trickle:    false,
 		Wrap:       false,
 		Chunker:    "",
+		Base:       b,
 	}, nil
 }
 
@@ -90,6 +93,7 @@ type Adder struct {
 	unlocker   bstore.Unlocker
 	tempRoot   *cid.Cid
 	Prefix     *cid.Prefix
+	Base       mbase.Encoder
 	liveNodes  uint64
 }
 
@@ -276,7 +280,7 @@ func (adder *Adder) outputDirs(path string, fsn mfs.FSNode) error {
 			return err
 		}
 
-		return outputDagnode(adder.Out, path, nd)
+		return outputDagnode(adder.Out, path, nd, adder.Base)
 	default:
 		return fmt.Errorf("unrecognized fsn type: %#v", fsn)
 	}
@@ -398,7 +402,7 @@ func (adder *Adder) addNode(node ipld.Node, path string) error {
 	}
 
 	if !adder.Silent {
-		return outputDagnode(adder.Out, path, node)
+		return outputDagnode(adder.Out, path, node, adder.Base)
 	}
 	return nil
 }
@@ -533,12 +537,12 @@ func (adder *Adder) maybePauseForGC() error {
 }
 
 // outputDagnode sends dagnode info over the output channel
-func outputDagnode(out chan interface{}, name string, dn ipld.Node) error {
+func outputDagnode(out chan interface{}, name string, dn ipld.Node, base mbase.Encoder) error {
 	if out == nil {
 		return nil
 	}
 
-	o, err := getOutput(dn)
+	o, err := getOutput(dn, base)
 	if err != nil {
 		return err
 	}
@@ -553,7 +557,7 @@ func outputDagnode(out chan interface{}, name string, dn ipld.Node) error {
 }
 
 // from core/commands/object.go
-func getOutput(dagnode ipld.Node) (*Object, error) {
+func getOutput(dagnode ipld.Node, base mbase.Encoder) (*Object, error) {
 	c := dagnode.Cid()
 	s, err := dagnode.Size()
 	if err != nil {
@@ -561,7 +565,7 @@ func getOutput(dagnode ipld.Node) (*Object, error) {
 	}
 
 	output := &Object{
-		Hash:  c.String(),
+		Hash:  c.Format(base),
 		Size:  strconv.FormatUint(s, 10),
 		Links: make([]Link, len(dagnode.Links())),
 	}
